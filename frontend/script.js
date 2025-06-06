@@ -1,0 +1,1 @@
+fetch('/').then(r => r.text()).then(console.log);

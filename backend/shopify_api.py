@@ -1,0 +1,1 @@
+# Placeholder for Shopify Admin API integration
