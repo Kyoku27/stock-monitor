@@ -1,12 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <title>Stock Monitor</title>
-  <link rel='stylesheet' href='style.css'>
+  <meta charset="UTF-8">
+  <title>在庫モニター</title>
+  <style>
+    table { border-collapse: collapse; width: 60%; margin: 20px auto; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #f4f4f4; }
+  </style>
 </head>
 <body>
-  <h1>库存监控系统</h1>
-  <div id='table-container'></div>
-  <script src='script.js'></script>
+  <h2 style="text-align:center;">在庫モニター（楽天＋Google Sheet）</h2>
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>楽天在庫</th><th>Google在庫</th></tr>
+    </thead>
+    <tbody id="stock-table">
+      <tr><td colspan="3">読み込み中...</td></tr>
+    </tbody>
+  </table>
+
+  <script src="script.js"></script>
 </body>
 </html>
