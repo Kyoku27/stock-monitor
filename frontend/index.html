@@ -10,6 +10,16 @@
   </style>
 </head>
 <body>
+  <div style="margin-bottom: 20px; text-align: center;">
+  <label>商品管理番号（manage_number）：</label><br>
+  <input type="text" id="manage-number" value="smartpetfeeder" style="width: 300px; padding: 5px;"><br><br>
+
+  <label>SKU（用逗号或换行分隔）：</label><br>
+  <textarea id="sku-list" rows="4" style="width: 300px;"></textarea><br><br>
+
+  <button onclick="queryRakuten()">查询库存</button>
+</div>
+
   <h2 style="text-align:center;">在庫モニター（楽天＋Google Sheet）</h2>
   <table>
     <thead>
