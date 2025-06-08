@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from backend.rakuten_api import get_rakuten_inventory
+from rakuten_api import get_rakuten_inventory
 
 app = Flask(__name__)
 
