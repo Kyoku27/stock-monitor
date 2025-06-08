@@ -11,5 +11,8 @@ def rakuten_stock():
     data = get_rakuten_inventory(sku_list)
     return jsonify(data)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+import os
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # Render 自动注入的端口
+    app.run(host="0.0.0.0", port=port)
