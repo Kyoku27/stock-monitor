@@ -26,3 +26,4 @@ def get_rakuten_inventory(manage_number, sku_list):
 
     return results
 
+
