@@ -1,13 +1,26 @@
-import random
+import os
+import requests
+import base64
 
-# 示例：获取 SKU 库存数量（假设数据来自 API 或数据库）
 def get_rakuten_inventory(sku_list):
-    result = []
+    service_secret = os.getenv("RAKUTEN_SERVICE_SECRET")
+    license_key = os.getenv("RAKUTEN_LICENSE_KEY")
+
+    headers = {
+        "Authorization": "ESA " + base64.b64encode(f"{service_secret}:{license_key}".encode()).decode(),
+        "Content-Type": "application/json"
+    }
+
+    results = []
     for sku in sku_list:
-        # 这里是假数据，可以替换为实际对 Rakuten RMS API 的调用
-        result.append({
-            "sku": sku,
-            "stock": random.randint(0, 100)  # 随机生成库存数
-        })
-    return result
+        # 实际上你还需要知道商品管理番号（manageNumber），假设为 "MNG123"
+        url = f"https://api.rms.rakuten.co.jp/es/2.0/inventories/manage-numbers/MNG123/variants/{sku}"
+
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            results.append(res.json())
+        else:
+            results.append({"sku": sku, "error": res.status_code, "message": res.text})
+
+    return results
 
