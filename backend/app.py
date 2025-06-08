@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from rakuten_api import get_rakuten_inventory  # 不带 backend
+from rakuten_api import get_rakuten_inventory  # ✅ 不要加 backend.
 
 app = Flask(__name__)
 
