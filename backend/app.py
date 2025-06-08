@@ -13,3 +13,7 @@ def rakuten_stock():
 
     data = get_rakuten_inventory(manage_number, sku_list)
     return jsonify(data)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
