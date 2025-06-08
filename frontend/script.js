@@ -1,26 +1,29 @@
-const skuList = ["CZR001", "CZR002", "CZR003"];
+async function queryRakuten() {
+  const manage = document.getElementById("manage-number").value.trim();
+  const rawSkus = document.getElementById("sku-list").value.trim().replace(/[\n,]+/g, ",");
+  const skus = rawSkus.split(",").map(s => s.trim()).filter(Boolean);
 
-async function fetchStock(api, skus) {
-  const query = skus.map(sku => "sku=" + sku).join("&");
-  const res = await fetch(`/api/stock/${api}?` + query);
-  return await res.json();
-}
+  if (!manage || skus.length === 0) {
+    alert("请填写管理番号和至少一个 SKU！");
+    return;
+  }
 
-async function renderTable() {
-  const tbody = document.getElementById("stock-table");
-  const rakutenData = await fetchStock("rakuten", skuList);
-  const gsheetData = await fetchStock("gsheet", skuList);
+  const url = `/api/stock/rakuten?manage=${encodeURIComponent(manage)}&` + 
+              skus.map(s => `sku=${encodeURIComponent(s)}`).join("&");
 
-  tbody.innerHTML = "";
-  skuList.forEach(sku => {
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const table = document.getElementById("stock-table");
+  table.innerHTML = "";
+
+  data.forEach(item => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${sku}</td>
-      <td>${rakutenData[sku] ?? "-"}</td>
-      <td>${gsheetData[sku] ?? "-"}</td>
+      <td>${item.variantId || item.sku}</td>
+      <td>${item.quantity ?? '—'}</td>
+      <td>${item.updated ?? '—'}</td>
     `;
-    tbody.appendChild(tr);
+    table.appendChild(tr);
   });
 }
-
-renderTable();
