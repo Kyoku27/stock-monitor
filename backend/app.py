@@ -1,7 +1,7 @@
+import os
 from flask import Flask, request, jsonify, send_from_directory
 from rakuten_api import get_rakuten_inventory
-from gsheet_api import get_google_stock_mapping
-import os
+from gsheet_api import get_google_inventory
 
 app = Flask(__name__)
 
@@ -14,24 +14,20 @@ def rakuten_stock():
         return jsonify({"error": "Please provide manage and SKU(s) via ?manage=XXX&sku=SKU1&sku=SKU2"}), 400
 
     rakuten_data = get_rakuten_inventory(manage_number, sku_list)
-    sheet_mapping = get_google_stock_mapping()
+    google_data = get_google_inventory(sku_list)
 
-    combined = []
-    for row in rakuten_data:
-        sku = row.get("variantId")
-        mapped = next((item for item in sheet_mapping if item['システム連携用SKU番号'] == sku), {})
-        combined.append({
+    merged = []
+    for item in rakuten_data:
+        sku = item.get("variantId")
+        merged.append({
             "sku": sku,
-            "rakuten_stock": row.get("quantity"),
-            "google_stock": mapped.get("在庫", "-"),
-            "brand": mapped.get("ブランド", ""),
-            "type": mapped.get("型番", "")
+            "rakuten": item.get("quantity"),
+            "google": google_data.get(sku, 0),
         })
-
-    return jsonify(combined)
+    return jsonify(merged)
 
 @app.route("/")
-def index():
+def frontend():
     return send_from_directory("frontend", "index.html")
 
 @app.route("/<path:path>")
