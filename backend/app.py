@@ -1,10 +1,36 @@
 import os
+import json
 from flask import Flask, request, jsonify, send_from_directory
 from rakuten_api import get_rakuten_inventory
-from gsheet_api import get_google_inventory
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 app = Flask(__name__)
 
+# -----------------------------
+# Google Sheets 从环境变量读取库存
+# -----------------------------
+def get_google_inventory(sku_list):
+    service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "{}"))
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
+    client = gspread.authorize(creds)
+
+    SHEET_ID = "1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA"
+    SHEET_NAME = "楽天"
+    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+    rows = sheet.get_all_records()
+
+    sku_to_stock = {}
+    for row in rows:
+        sku_key = row.get("システム連携用SKU番号", "").strip()
+        if sku_key in sku_list:
+            sku_to_stock[sku_key] = row.get("在庫", 0)
+    return sku_to_stock
+
+# -----------------------------
+# API 路由：前端调用库存数据
+# -----------------------------
 @app.route("/api/stock/rakuten")
 def rakuten_stock():
     manage_number = request.args.get("manage")
@@ -26,6 +52,9 @@ def rakuten_stock():
         })
     return jsonify(merged)
 
+# -----------------------------
+# 静态文件托管（前端页面）
+# -----------------------------
 @app.route("/")
 def frontend():
     return send_from_directory("frontend", "index.html")
@@ -34,6 +63,9 @@ def frontend():
 def static_proxy(path):
     return send_from_directory("frontend", path)
 
+# -----------------------------
+# 启动应用
+# -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
