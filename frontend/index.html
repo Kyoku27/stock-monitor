@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>在庫モニター</title>
   <style>
     body {
@@ -14,7 +14,7 @@
     }
     input, select {
       padding: 5px;
-      margin: 5px 10px;
+      margin: 5px 10px 5px 0;
     }
     table {
       border-collapse: collapse;
@@ -24,86 +24,46 @@
     }
     th, td {
       border: 1px solid #ccc;
-      padding: 6px 10px;
-      text-align: left;
+      padding: 8px;
+      text-align: center;
     }
     th {
-      background-color: #eee;
+      background-color: #f4f4f4;
     }
   </style>
 </head>
 <body>
+  <h1>在庫モニター（楽天 + Google Sheets）</h1>
 
-  <h1>在庫モニター</h1>
   <label>SKU検索：</label>
-  <input type="text" id="skuFilter" placeholder="SKU番号を入力">
+  <input type="text" id="skuSearch" placeholder="例: MS006-1-BU" />
   
   <label>ブランド：</label>
   <select id="brandFilter">
     <option value="">すべて</option>
-    <option value="MOFT">MOFT</option>
     <option value="HRP">HRP</option>
+    <option value="MOFT">MOFT</option>
     <option value="CZUR">CZUR</option>
   </select>
 
-  <table id="stockTable">
+  <button onclick="loadStock()">検索</button>
+
+  <table>
     <thead>
       <tr>
-        <th>SKU番号</th>
         <th>ブランド</th>
+        <th>SKU</th>
         <th>楽天在庫</th>
         <th>Google在庫</th>
       </tr>
     </thead>
-    <tbody>
-      <!-- JSで挿入 -->
+    <tbody id="stock-table">
+      <tr><td colspan="4">読み込み中...</td></tr>
     </tbody>
   </table>
 
-  <script>
-    async function fetchStock() {
-      const res = await fetch("/api/stock/rakuten?manage=EZLIFE&sku=all");
-      const data = await res.json();
-      return data;
-    }
-
-    function renderTable(data) {
-      const tbody = document.querySelector("#stockTable tbody");
-      tbody.innerHTML = "";
-
-      const skuKeyword = document.getElementById("skuFilter").value.toLowerCase();
-      const brandFilter = document.getElementById("brandFilter").value;
-
-      data.forEach(item => {
-        const sku = item.sku || "";
-        const brand = item.brand || "";
-        if (
-          (sku.includes(skuKeyword)) &&
-          (!brandFilter || brand === brandFilter)
-        ) {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${sku}</td>
-            <td>${brand}</td>
-            <td>${item.rakuten}</td>
-            <td>${item.google}</td>
-          `;
-          tbody.appendChild(row);
-        }
-      });
-    }
-
-    let cachedData = [];
-
-    document.getElementById("skuFilter").addEventListener("input", () => renderTable(cachedData));
-    document.getElementById("brandFilter").addEventListener("change", () => renderTable(cachedData));
-
-    fetchStock().then(data => {
-      cachedData = data;
-      renderTable(data);
-    });
-  </script>
-
+  <script src="script.js"></script>
 </body>
 </html>
+
 
