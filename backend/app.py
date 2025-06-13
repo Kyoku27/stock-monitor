@@ -1,53 +1,57 @@
 import os
-import json
+import csv
+import io
+import requests
 from flask import Flask, request, jsonify
 from rakuten_api import get_rakuten_inventory
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 
-# ✅ 允许 Flask 正确找到 frontend 静态文件
+# ✅ 前端托管设置
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
+# ✅ 公共 Google Sheet CSV 地址（楽天映射表）
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA/gviz/tq?tqx=out:csv&sheet=楽天"
+
 # -----------------------------
-# Google Sheets 从环境变量读取库存
+# ✅ 函数：从共享 CSV 获取 Google Sheets 在庫
 # -----------------------------
 def get_google_inventory(sku_list):
-    service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "{}"))
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
-    client = gspread.authorize(creds)
+    try:
+        response = requests.get(SHEET_CSV_URL)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"[ERROR] Google Sheet fetch failed: {str(e)}")
+        return {}
 
-    SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA")
-    SHEET_NAME = os.environ.get("GOOGLE_SHEET_SHEETNAME", "楽天")
-    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-    rows = sheet.get_all_records()
-
-    sku_to_stock = {}
-    for row in rows:
-        sku_key = row.get("システム連携用SKU番号", "").strip()
-        if sku_key in sku_list:
-            sku_to_stock[sku_key] = row.get("在庫", 0)
-    return sku_to_stock
+    f = io.StringIO(response.text)
+    reader = csv.DictReader(f)
+    stock_map = {}
+    for row in reader:
+        sku = row.get("システム連携用SKU番号", "").strip()
+        if sku in sku_list:
+            try:
+                stock_map[sku] = int(row.get("在庫", 0))
+            except:
+                stock_map[sku] = 0
+    return stock_map
 
 # -----------------------------
-# ✅ 新接口：返回整张映射表（含SKU, 品名, 品牌等）
+# ✅ 接口1：获取整张 SKU 映射表（用于前端初始化）
 # -----------------------------
 @app.route("/api/stock/mapping")
 def stock_mapping():
-    service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "{}"))
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
-    client = gspread.authorize(creds)
+    try:
+        response = requests.get(SHEET_CSV_URL)
+        response.raise_for_status()
+    except Exception as e:
+        return jsonify({"error": f"Google Sheet CSV fetch failed: {str(e)}"}), 500
 
-    SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA")
-    SHEET_NAME = os.environ.get("GOOGLE_SHEET_SHEETNAME", "楽天")
-    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-    rows = sheet.get_all_records()
-
-    return jsonify(rows)
+    f = io.StringIO(response.text)
+    reader = csv.DictReader(f)
+    data = [row for row in reader if any(row.values())]
+    return jsonify(data)
 
 # -----------------------------
-# API 路由：返回库存数据
+# ✅ 接口2：获取楽天 + Google在庫（合并）
 # -----------------------------
 @app.route("/api/stock/rakuten")
 def rakuten_stock():
@@ -71,18 +75,19 @@ def rakuten_stock():
     return jsonify(merged)
 
 # -----------------------------
-# 首页和静态文件托管
+# ✅ 首页：返回 index.html
 # -----------------------------
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
 
 # -----------------------------
-# 启动应用
+# ✅ 启动应用
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
