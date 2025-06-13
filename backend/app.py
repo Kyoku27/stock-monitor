@@ -17,8 +17,8 @@ def get_google_inventory(sku_list):
     creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
     client = gspread.authorize(creds)
 
-    SHEET_ID = "1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA"
-    SHEET_NAME = "楽天"
+    SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA")
+    SHEET_NAME = os.environ.get("GOOGLE_SHEET_SHEETNAME", "楽天")
     sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
     rows = sheet.get_all_records()
 
@@ -28,6 +28,23 @@ def get_google_inventory(sku_list):
         if sku_key in sku_list:
             sku_to_stock[sku_key] = row.get("在庫", 0)
     return sku_to_stock
+
+# -----------------------------
+# ✅ 新接口：返回整张映射表（含SKU, 品名, 品牌等）
+# -----------------------------
+@app.route("/api/stock/mapping")
+def stock_mapping():
+    service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "{}"))
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
+    client = gspread.authorize(creds)
+
+    SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA")
+    SHEET_NAME = os.environ.get("GOOGLE_SHEET_SHEETNAME", "楽天")
+    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+    rows = sheet.get_all_records()
+
+    return jsonify(rows)
 
 # -----------------------------
 # API 路由：返回库存数据
