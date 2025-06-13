@@ -1,11 +1,12 @@
 import os
 import json
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from rakuten_api import get_rakuten_inventory
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-app = Flask(__name__)
+# ✅ 允许 Flask 正确找到 frontend 静态文件
+app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
 # -----------------------------
 # Google Sheets 从环境变量读取库存
@@ -29,7 +30,7 @@ def get_google_inventory(sku_list):
     return sku_to_stock
 
 # -----------------------------
-# API 路由：前端调用库存数据
+# API 路由：返回库存数据
 # -----------------------------
 @app.route("/api/stock/rakuten")
 def rakuten_stock():
@@ -53,15 +54,11 @@ def rakuten_stock():
     return jsonify(merged)
 
 # -----------------------------
-# 静态文件托管（前端页面）
+# 首页和静态文件托管
 # -----------------------------
 @app.route("/")
-def frontend():
-    return send_from_directory("frontend", "index.html")
-
-@app.route("/<path:path>")
-def static_proxy(path):
-    return send_from_directory("frontend", path)
+def index():
+    return app.send_static_file("index.html")
 
 # -----------------------------
 # 启动应用
@@ -69,6 +66,7 @@ def static_proxy(path):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
