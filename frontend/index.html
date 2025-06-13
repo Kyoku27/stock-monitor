@@ -37,14 +37,9 @@
 
   <label>SKU検索：</label>
   <input type="text" id="skuSearch" placeholder="例: MS006-1-BU" />
-  
+
   <label>ブランド：</label>
-  <select id="brandFilter">
-    <option value="">すべて</option>
-    <option value="HRP">HRP</option>
-    <option value="MOFT">MOFT</option>
-    <option value="CZUR">CZUR</option>
-  </select>
+  <select id="brandFilter"></select>
 
   <button onclick="loadStock()">検索</button>
 
@@ -62,7 +57,66 @@
     </tbody>
   </table>
 
-  <script src="script.js"></script>
+  <script>
+    let allMappingData = [];
+
+    async function fetchMappingData() {
+      const res = await fetch("/api/stock/mapping");
+      const data = await res.json();
+      allMappingData = data;
+      populateBrandFilter(data);
+      renderTable(data); // 默认显示全部
+    }
+
+    function populateBrandFilter(data) {
+      const select = document.getElementById("brandFilter");
+      const brands = Array.from(new Set(data.map(row => row["ブランド"]).filter(Boolean))).sort();
+      select.innerHTML = '<option value="">すべて</option>';
+      brands.forEach(brand => {
+        const option = document.createElement("option");
+        option.value = brand;
+        option.textContent = brand;
+        select.appendChild(option);
+      });
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById("stock-table");
+      tbody.innerHTML = "";
+
+      if (data.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4'>一致するデータがありません</td></tr>";
+        return;
+      }
+
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row["ブランド"] || "-"}</td>
+          <td>${row["システム連携用SKU番号"] || "-"}</td>
+          <td>-</td>
+          <td>${row["在庫"] || "-"}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function loadStock() {
+      const skuKeyword = document.getElementById("skuSearch").value.trim().toLowerCase();
+      const selectedBrand = document.getElementById("brandFilter").value;
+
+      const filtered = allMappingData.filter(row => {
+        const sku = (row["システム連携用SKU番号"] || "").toLowerCase();
+        const brand = row["ブランド"] || "";
+        return (!skuKeyword || sku.includes(skuKeyword)) &&
+               (!selectedBrand || brand === selectedBrand);
+      });
+
+      renderTable(filtered);
+    }
+
+    fetchMappingData();
+  </script>
 </body>
 </html>
 
