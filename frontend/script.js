@@ -1,49 +1,60 @@
-async function loadStock() {
-  const manageNumber = "smartpetfeeder"; // 目前固定为 smartpetfeeder
-  const skuInput = document.getElementById("skuSearch").value.trim();
-  const brand = document.getElementById("brandFilter").value;
+let allMappingData = [];
 
-  // 获取 SKU 映射表
-  const mapRes = await fetch("/api/stock/mapping");
-  const mapping = await mapRes.json();
+async function fetchMappingData() {
+  const res = await fetch("/api/stock/mapping");
+  const data = await res.json();
+  allMappingData = data;
+  populateBrandFilter(data);
+  renderTable(data); // 默认全显示
+}
 
-  let filtered = mapping;
+function populateBrandFilter(data) {
+  const select = document.getElementById("brandFilter");
+  const brands = Array.from(new Set(data.map(row => row["ブランド"]).filter(Boolean))).sort();
+  select.innerHTML = '<option value="">すべて</option>';
+  brands.forEach(brand => {
+    const option = document.createElement("option");
+    option.value = brand;
+    option.textContent = brand;
+    select.appendChild(option);
+  });
+}
 
-  if (skuInput) {
-    const keyword = skuInput.toLowerCase();
-    filtered = filtered.filter(row =>
-      row["システム連携用SKU番号"].toLowerCase().includes(keyword)
-    );
-  }
+function renderTable(data) {
+  const tbody = document.getElementById("stock-table");
+  tbody.innerHTML = "";
 
-  if (brand) {
-    filtered = filtered.filter(row => row["ブランド"] === brand);
-  }
-
-  const skuList = filtered.map(row => row["システム連携用SKU番号"]);
-  if (skuList.length === 0) {
-    document.getElementById("stock-table").innerHTML =
-      "<tr><td colspan='4'>一致するデータがありません</td></tr>";
+  if (data.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='4'>一致するデータがありません</td></tr>";
     return;
   }
 
-  // 调用在庫API
-  const query = skuList.map(sku => `sku=${encodeURIComponent(sku)}`).join("&");
-  const res = await fetch(`/api/stock/rakuten?manage=${manageNumber}&${query}`);
-  const data = await res.json();
-
-  const tableBody = document.getElementById("stock-table");
-  tableBody.innerHTML = "";
-
   data.forEach(row => {
-    const brandName = (mapping.find(m => m["システム連携用SKU番号"] === row.sku) || {})["ブランド"] || "";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${brandName}</td>
-      <td>${row.sku}</td>
-      <td>${row.rakuten}</td>
-      <td>${row.google}</td>
+      <td>${row["ブランド"] || "-"}</td>
+      <td>${row["システム連携用SKU番号"] || "-"}</td>
+      <td>-</td> <!-- 楽天在庫：暂时空 -->
+      <td>${row["在庫"] || "-"}</td>
     `;
-    tableBody.appendChild(tr);
+    tbody.appendChild(tr);
   });
 }
+
+function loadStock() {
+  const skuKeyword = document.getElementById("skuSearch").value.trim().toLowerCase();
+  const selectedBrand = document.getElementById("brandFilter").value;
+
+  const filtered = allMappingData.filter(row => {
+    const sku = (row["システム連携用SKU番号"] || "").toLowerCase();
+    const brand = row["ブランド"] || "";
+    return (!skuKeyword || sku.includes(skuKeyword)) &&
+           (!selectedBrand || brand === selectedBrand);
+  });
+
+  renderTable(filtered);
+}
+
+// 初始化
+fetchMappingData();
+
