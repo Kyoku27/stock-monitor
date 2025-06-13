@@ -8,13 +8,17 @@ from rakuten_api import get_rakuten_inventory
 # ✅ 前端托管设置
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# ✅ 公共 Google Sheet CSV 地址（楽天映射表）
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1nmQc-OJB3crXRzTjPwRcfaXjuTJVXCoLQPn0AeM6SrA/gviz/tq?tqx=out:csv&sheet=楽天"
+# ✅ 从环境变量读取 Google Sheet CSV URL（脱敏，不写死）
+SHEET_CSV_URL = os.environ.get("GOOGLE_SHEET_CSV_URL", "")
 
 # -----------------------------
 # ✅ 函数：从共享 CSV 获取 Google Sheets 在庫
 # -----------------------------
 def get_google_inventory(sku_list):
+    if not SHEET_CSV_URL:
+        print("[ERROR] SHEET_CSV_URL not set")
+        return {}
+
     try:
         response = requests.get(SHEET_CSV_URL)
         response.raise_for_status()
@@ -35,10 +39,13 @@ def get_google_inventory(sku_list):
     return stock_map
 
 # -----------------------------
-# ✅ 接口1：获取整张 SKU 映射表（用于前端初始化）
+# ✅ 接口1：获取整张 SKU 映射表（前端初始化使用）
 # -----------------------------
 @app.route("/api/stock/mapping")
 def stock_mapping():
+    if not SHEET_CSV_URL:
+        return jsonify({"error": "GOOGLE_SHEET_CSV_URL not set"}), 500
+
     try:
         response = requests.get(SHEET_CSV_URL)
         response.raise_for_status()
@@ -51,7 +58,7 @@ def stock_mapping():
     return jsonify(data)
 
 # -----------------------------
-# ✅ 接口2：获取楽天 + Google在庫（合并）
+# ✅ 接口2：获取楽天 + Google在庫（合并返回）
 # -----------------------------
 @app.route("/api/stock/rakuten")
 def rakuten_stock():
@@ -87,9 +94,3 @@ def index():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
-
-
-
-
