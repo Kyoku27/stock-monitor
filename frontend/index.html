@@ -4,42 +4,106 @@
   <meta charset="UTF-8">
   <title>在庫モニター</title>
   <style>
-    table { border-collapse: collapse; width: 60%; margin: 20px auto; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #f4f4f4; }
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f8f8f8;
+    }
+    h1 {
+      font-size: 24px;
+    }
+    input, select {
+      padding: 5px;
+      margin: 5px 10px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+      background: #fff;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #eee;
+    }
   </style>
 </head>
 <body>
-  <div style="margin-bottom: 20px; text-align: center;">
-  <label>商品管理番号（manage_number）：</label><br>
-  <input type="text" id="manage-number" value="smartpetfeeder" style="width: 300px; padding: 5px;"><br><br>
 
-  <label>SKU（用逗号或换行分隔）：</label><br>
-  <textarea id="sku-list" rows="4" style="width: 300px;"></textarea><br><br>
+  <h1>在庫モニター</h1>
+  <label>SKU検索：</label>
+  <input type="text" id="skuFilter" placeholder="SKU番号を入力">
+  
+  <label>ブランド：</label>
+  <select id="brandFilter">
+    <option value="">すべて</option>
+    <option value="MOFT">MOFT</option>
+    <option value="HRP">HRP</option>
+    <option value="CZUR">CZUR</option>
+  </select>
 
-  <button onclick="queryRakuten()">查询库存</button>
-</div>
-
-  <h2 style="text-align:center;">在庫モニター（楽天＋Google Sheet）</h2>
-  <table>
+  <table id="stockTable">
     <thead>
-      <tr><th>SKU</th><th>楽天在庫</th><th>Google在庫</th></tr>
+      <tr>
+        <th>SKU番号</th>
+        <th>ブランド</th>
+        <th>楽天在庫</th>
+        <th>Google在庫</th>
+      </tr>
     </thead>
-    <tbody id="stock-table">
-      <tr><td colspan="3">読み込み中...</td></tr>
+    <tbody>
+      <!-- JSで挿入 -->
     </tbody>
   </table>
 
-  <script src="script.js"></script>
+  <script>
+    async function fetchStock() {
+      const res = await fetch("/api/stock/rakuten?manage=EZLIFE&sku=all");
+      const data = await res.json();
+      return data;
+    }
+
+    function renderTable(data) {
+      const tbody = document.querySelector("#stockTable tbody");
+      tbody.innerHTML = "";
+
+      const skuKeyword = document.getElementById("skuFilter").value.toLowerCase();
+      const brandFilter = document.getElementById("brandFilter").value;
+
+      data.forEach(item => {
+        const sku = item.sku || "";
+        const brand = item.brand || "";
+        if (
+          (sku.includes(skuKeyword)) &&
+          (!brandFilter || brand === brandFilter)
+        ) {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${sku}</td>
+            <td>${brand}</td>
+            <td>${item.rakuten}</td>
+            <td>${item.google}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      });
+    }
+
+    let cachedData = [];
+
+    document.getElementById("skuFilter").addEventListener("input", () => renderTable(cachedData));
+    document.getElementById("brandFilter").addEventListener("change", () => renderTable(cachedData));
+
+    fetchStock().then(data => {
+      cachedData = data;
+      renderTable(data);
+    });
+  </script>
+
 </body>
 </html>
 
-<input type="text" id="skuInput" placeholder="システム連携用SKU番号 で検索" />
-<select id="brandFilter">
-  <option value="">すべてのブランド</option>
-  <option value="HRP">HRP</option>
-  <option value="MOFT">MOFT</option>
-</select>
-<button onclick="filterStock()">検索</button>
-<table id="stock-table">...</table>
-<script src="script.js"></script>
