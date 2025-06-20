@@ -5,12 +5,17 @@ import io
 import requests
 
 # ✅ 不暴露任何链接在代码中，均来自环境变量
-def get_sheet_csv_url_by_brand(brand):
-    return {
-        "HRP": os.getenv("SHEET_HRP_URL"),
-        "MOFT": os.getenv("SHEET_MOFT_URL"),
-        "CZUR": os.getenv("SHEET_CZUR_URL"),
-    }.get(brand)
+def get_sheet_csv_url(sku, brand):
+    if brand == "HRP":
+        return os.getenv("SHEET_HRP_URL")
+    elif brand == "CZUR":
+        return os.getenv("SHEET_CZUR_URL")
+    elif brand == "MOFT":
+        moft_map = json.loads(os.getenv("SHEET_MOFT_MAP_JSON", "{}"))
+        return moft_map.get(sku)
+    else:
+        return None
+
 
 def get_real_stock_by_sku(sku, brand):
     url = get_sheet_csv_url_by_brand(brand)
