@@ -101,24 +101,16 @@ def real_stock():
 
     mapping = get_brand_and_sku_map()
 
-    match = next(
-        (row for row in mapping if query in (
-            row.get("SKU管理番号", ""),
-            row.get("型番", ""),
-            row.get("システム連携用SKU番号", "")
-        )),
-        None
-    )
-
+    match = next((row for row in mapping if query == row.get("システム連携用SKU番号", "")), None)
     if not match:
         return jsonify({"error": "SKU not found"}), 404
 
     brand = match.get("ブランド", "")
     型番 = match.get("型番", "").strip()
-    sku_for_api = match.get("システム連携用SKU番号", "").strip()
     manage_number = match.get("SKU管理番号", "").strip()
+    sku_for_api = query  # 你搜索的就是这个
 
-    # ✅ 乐天库存：用 SKU管理番号 + システム連携用SKU番号 取库存
+    # ✅ 乐天库存：manage_number + variantId 查询
     rakuten_quantity = "-"
     try:
         rakuten_data = get_rakuten_inventory(manage_number, [sku_for_api])
@@ -129,11 +121,11 @@ def real_stock():
     except Exception as e:
         print(f"[ERROR] 楽天API failed: {e}")
 
-    # ✅ Google Sheet 库存：使用型番
+    # ✅ Google Sheet：型番 查表
     try:
         stock_data = get_real_stock_by_sku(型番, brand)
     except Exception as e:
-        print(f"[ERROR] Google Sheet lookup failed: {e}")
+        print(f"[ERROR] GSheet failed: {e}")
         stock_data = {}
 
     return jsonify({
