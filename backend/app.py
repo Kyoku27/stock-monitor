@@ -100,6 +100,7 @@ def real_stock():
         return jsonify({"error": "Missing SKU"}), 400
 
     mapping = get_brand_and_sku_map()
+
     match = next(
         (row for row in mapping if query in (
             row.get("SKU管理番号", ""),
@@ -113,33 +114,26 @@ def real_stock():
         return jsonify({"error": "SKU not found"}), 404
 
     brand = match.get("ブランド", "")
-    model_sku = match.get("型番", "")
-    manage_number = match.get("SKU管理番号", "")
-    system_sku = match.get("システム連携用SKU番号", "")
+    型番 = match.get("型番", "")
+    sku_for_api = match.get("システム連携用SKU番号", "")
+    manage_number = match.get("SKU管理番号", "") or sku_for_api
 
-    # ✅ 乐天在庫
+    # ✅ 调用楽天API（variantId 要用 SKU 番号）
     rakuten_quantity = "-"
-    try:
-        rakuten_result = get_rakuten_inventory(manage_number, [model_sku])
-        for item in rakuten_result:
-            if item.get("variantId") == model_sku:
-                rakuten_quantity = item.get("quantity", "-")
-                break
-    except Exception as e:
-        print(f"[ERROR] 楽天 API failed: {e}")
+    rakuten_data = get_rakuten_inventory(manage_number, [sku_for_api])
+    for item in rakuten_data:
+        if item.get("variantId") == sku_for_api:
+            rakuten_quantity = item.get("quantity", "-")
+            break
 
-    # ✅ Google 表在庫
-    google_stock = get_real_stock_by_sku(model_sku, brand)
-    google_jisha = google_stock.get("自社") if "自社" in google_stock else google_stock.get("在庫", "-")
-    google_city = google_stock.get("City") if "City" in google_stock else "-"
+    # ✅ 查库存表
+    stock_data = get_real_stock_by_sku(型番, brand)
 
     return jsonify({
         "ブランド": brand,
-        "SKU": system_sku,
-        "型番": model_sku,
+        "型番": 型番,
         "楽天在庫": rakuten_quantity,
-        "Google自社": google_jisha,
-        "GoogleCity": google_city
+        "在庫": stock_data
     })
 
 # -----------------------------
