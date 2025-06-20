@@ -1,3 +1,4 @@
+<script>
 let allMappingData = [];
 
 async function fetchMappingData() {
@@ -30,7 +31,7 @@ async function renderTable(data) {
   }
 
   for (const row of data) {
-    const sku = row["型番"] || row["システム連携用SKU番号"];
+    const sku = row["システム連携用SKU番号"] || row["型番"];
     const brand = row["ブランド"] || "-";
 
     let rakuten = "-";
@@ -40,10 +41,13 @@ async function renderTable(data) {
     try {
       const res = await fetch(`/api/stock/real?sku=${encodeURIComponent(sku)}`);
       const json = await res.json();
-      const stock = json.在庫 || {};
 
-      if (json.ブランド === "HRP") {
-        rakuten = stock["自社"] ?? "-";
+      // 乐天库存是一个字段
+      rakuten = json["楽天在庫"] ?? "-";
+
+      const stock = json["在庫"] || {};
+      if (brand === "HRP") {
+        googleSelf = stock["自社"] ?? "-";
         googleCity = stock["City"] ?? "-";
       } else {
         googleSelf = stock["在庫"] ?? "-";
@@ -79,3 +83,5 @@ function loadStock() {
 }
 
 fetchMappingData(); // 页面初始化时加载
+</script>
+
