@@ -1,66 +1,71 @@
 import os
 import csv
 import io
-import json
 import requests
-import pandas as pd
+from flask import Flask, request, jsonify
+
+from rakuten_api import get_rakuten_inventory
+from gsheet_api import get_real_stock_by_sku
 from gsheet_mapping import get_brand_and_sku_map
 
-# ✅ 获取品牌对应的库存表链接
-def get_sheet_csv_url_by_brand(brand):
-    return {
-        "HRP": os.getenv("SHEET_HRP_URL"),
-        "CZUR": os.getenv("SHEET_CZUR_URL")
-    }.get(brand)
+app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# ✅ 遍历 MOFT 所有库存表
-def get_moft_stock_from_multiple_csvs(target_sku):
-    urls = json.loads(os.environ.get("SHEET_MOFT_URLS", "[]"))
-    for url in urls:
-        try:
-            response = requests.get(url)
-            content = response.content.decode("utf-8")
-            df = pd.read_csv(io.StringIO(content), header=None)
-            for col in df.columns:
-                if str(df.iloc[3, col]).strip() == target_sku:
-                    return str(df.iloc[7, col]).strip()  # ✅ 第8行是「今月」库存
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch from {url}: {e}")
-    return None
+# -----------------------------
+@app.route("/api/stock/real")
+def real_stock():
+    query = request.args.get("sku", "").strip()
+    if not query:
+        return jsonify({"error": "Missing SKU"}), 400
 
-# ✅ 主函数：根据 SKU 和品牌查库存
-def get_real_stock_by_sku(sku, brand):
-    if brand == "MOFT":
-        stock = get_moft_stock_from_multiple_csvs(sku)
-        return {"商品ID": sku, "在庫": stock} if stock else {}
+    mapping = get_brand_and_sku_map()
+    match = next((row for row in mapping if query == row.get("システム連携用SKU番号", "")), None)
+    if not match:
+        return jsonify({"error": "SKU not found"}), 404
 
-    url = get_sheet_csv_url_by_brand(brand)
-    if not url:
-        return {}
+    brand = match.get("ブランド", "")
+    型番 = match.get("型番", "")
+    manage_number = match.get("SKU管理番号", "")
 
-    res = requests.get(url)
-    res.raise_for_status()
-    rows = list(csv.reader(io.StringIO(res.text)))
+    # ✅ 乐天库存查询（按 SKU管理番号 和 query 作为 variantId）
+    rakuten_quantity = "-"
+    try:
+        rakuten_data = get_rakuten_inventory(manage_number, [query])
+        for item in rakuten_data:
+            if item.get("variantId") == query:
+                rakuten_quantity = item.get("quantity", "-")
+                break
+    except Exception as e:
+        print(f"[ERROR] 楽天 API 失败: {e}")
 
-    target_col = -1
-    for idx, val in enumerate(rows[3]):
-        if val.strip() == sku:
-            target_col = idx
-            break
+    # ✅ Google Sheet 库存（按 型番 查）
+    google_stock = {}
+    try:
+        google_stock = get_real_stock_by_sku(型番, brand)
+    except Exception as e:
+        print(f"[ERROR] Google Sheet 库存获取失败: {e}")
 
-    if target_col == -1:
-        return {}
+    return jsonify({
+        "ブランド": brand,
+        "SKU": query,
+        "楽天在庫": rakuten_quantity,
+        "在庫": google_stock
+    })
 
-    stock_row = rows[7]  # ✅ 第8行是「今月」库存
+# -----------------------------
+@app.route("/api/stock/mapping")
+def stock_mapping():
+    try:
+        mapping = get_brand_and_sku_map()
+        return jsonify(mapping)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-    if brand == "HRP":
-        return {
-            "商品ID": sku,
-            "自社": stock_row[target_col].strip(),
-            "City": stock_row[target_col + 1].strip() if target_col + 1 < len(stock_row) else ""
-        }
-    else:
-        return {
-            "商品ID": sku,
-            "在庫": stock_row[target_col].strip()
-        }
+# -----------------------------
+@app.route("/")
+def index():
+    return app.send_static_file("index.html")
+
+# -----------------------------
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
