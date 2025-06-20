@@ -5,7 +5,7 @@ async function fetchMappingData() {
   const data = await res.json();
   allMappingData = data;
   populateBrandFilter(data);
-  loadStock();  // 默认加载全部库存
+  loadStock(); // 初期化加载
 }
 
 function populateBrandFilter(data) {
@@ -25,7 +25,7 @@ async function renderTable(data) {
   tbody.innerHTML = "";
 
   if (data.length === 0) {
-    tbody.innerHTML = "<tr><td colspan='4'>一致するデータがありません</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='5'>一致するデータがありません</td></tr>";
     return;
   }
 
@@ -34,7 +34,8 @@ async function renderTable(data) {
     const brand = row["ブランド"] || "-";
 
     let rakuten = "-";
-    let google = "-";
+    let googleSelf = "-";
+    let googleCity = "-";
 
     try {
       const res = await fetch(`/api/stock/real?sku=${encodeURIComponent(sku)}`);
@@ -43,9 +44,9 @@ async function renderTable(data) {
 
       if (json.ブランド === "HRP") {
         rakuten = stock["自社"] ?? "-";
-        google = stock["City"] ?? "-";
+        googleCity = stock["City"] ?? "-";
       } else {
-        google = stock["在庫"] ?? "-";
+        googleSelf = stock["在庫"] ?? "-";
       }
     } catch (e) {
       console.error("在庫取得失敗", e);
@@ -56,7 +57,8 @@ async function renderTable(data) {
       <td>${brand}</td>
       <td>${sku}</td>
       <td>${rakuten}</td>
-      <td>${google}</td>
+      <td>${googleSelf}</td>
+      <td>${googleCity}</td>
     `;
     tbody.appendChild(tr);
   }
@@ -76,4 +78,4 @@ function loadStock() {
   renderTable(filtered);
 }
 
-fetchMappingData(); // 初期化
+fetchMappingData(); // 页面初始化时加载
