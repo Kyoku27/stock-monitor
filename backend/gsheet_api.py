@@ -26,7 +26,7 @@ def get_moft_stock_from_multiple_csvs(target_sku):
 
             for col in df.columns:
                 if str(df.iloc[3, col]).strip() == target_sku:
-                    return str(df.iloc[5, col]).strip()
+                    return str(df.iloc[7, col]).strip()
         except Exception as e:
             print(f"[ERROR] Failed to fetch from {url}: {e}")
 
