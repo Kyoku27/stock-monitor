@@ -74,23 +74,22 @@ def get_brand_and_sku_map():
     try:
         res = requests.get(url)
         res.raise_for_status()
-        content = res.content.decode("utf-8-sig")  # 读取时去除 BOM
+        content = res.content.decode("utf-8-sig")
         df = pd.read_csv(io.StringIO(content))
-
         df.columns = df.columns.str.strip()
 
-        # ✅ 统一字段名，避免转义问题
+        # ✅ 显示字段名日志
+        print("🟢 映射表字段：", df.columns.tolist())
+
+        # ✅ 强制字段重命名（注意你可以用 df.columns[index] 确保列位置）
         df.rename(columns={
             df.columns[0]: "SKU管理番号",
             df.columns[1]: "システム連携用SKU番号",
             df.columns[2]: "型番",
-            df.columns[3]: "ブランド",
-            # 商品ID列不重要，如果需要可继续加
+            df.columns[3]: "ブランド"
         }, inplace=True)
 
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[ERROR] SKU mapping fetch failed: {e}")
         return []
-
-
