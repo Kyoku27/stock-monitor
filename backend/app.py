@@ -112,12 +112,21 @@ def real_stock():
         return jsonify({"error": "Missing SKU"}), 400
 
     mapping = get_brand_and_sku_map()
-    match = next((row for row in mapping if row["型番"] == query), None)
+
+    match = next(
+        (row for row in mapping if query in (
+            row.get("SKU管理番号", ""),
+            row.get("型番", ""),
+            row.get("システム連携用SKU番号", "")
+        )),
+        None
+    )
+
     if not match:
         return jsonify({"error": "SKU not found"}), 404
 
-    brand = match["ブランド"]
-    sku = match["型番"]
+    brand = match.get("ブランド", "")
+    sku = match.get("型番", "")
     stock_data = get_real_stock_by_sku(sku, brand)
 
     return jsonify({
