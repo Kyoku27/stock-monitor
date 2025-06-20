@@ -3,16 +3,22 @@ import csv
 import io
 import requests
 from flask import Flask, request, jsonify
-from rakuten_api import get_rakuten_inventory
-from gsheet_api import get_moft_stock_from_multiple_csvs
 
+from rakuten_api import get_rakuten_inventory
+from gsheet_api import (
+    get_moft_stock_from_multiple_csvs,
+    get_brand_and_sku_map,
+    get_real_stock_by_sku
+)
+
+# ✅ 设置 Flask 应用并指定前端文件夹
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# ✅ 读取映射表的 Google Sheet CSV URL
+# ✅ 映射表 CSV（初始化表）
 SHEET_CSV_URL = os.environ.get("GOOGLE_SHEET_CSV_URL", "")
 
 # -----------------------------
-# ✅ 函数：从共享映射 CSV 获取 Google Sheets 库存
+# ✅ 函数：从映射表中读取 Google 在庫（用于 /api/stock/rakuten）
 # -----------------------------
 def get_google_inventory(sku_list):
     if not SHEET_CSV_URL:
@@ -39,7 +45,7 @@ def get_google_inventory(sku_list):
     return stock_map
 
 # -----------------------------
-# ✅ 接口1：获取整张 SKU 映射表（初始化加载）
+# ✅ 接口 1：获取 SKU 映射表（初始化用）
 # -----------------------------
 @app.route("/api/stock/mapping")
 def stock_mapping():
@@ -58,7 +64,7 @@ def stock_mapping():
     return jsonify(data)
 
 # -----------------------------
-# ✅ 接口2：楽天 + Google 在庫合并返回
+# ✅ 接口 2：楽天 + Google 在庫合并返回
 # -----------------------------
 @app.route("/api/stock/rakuten")
 def rakuten_stock():
@@ -82,7 +88,7 @@ def rakuten_stock():
     return jsonify(merged)
 
 # -----------------------------
-# ✅ 接口3：MOFT 实时库存（多表搜索型番）
+# ✅ 接口 3：MOFT 实时库存（从多个表中找）
 # -----------------------------
 @app.route("/api/stock/moft")
 def stock_moft():
@@ -97,7 +103,31 @@ def stock_moft():
         return jsonify({"sku": sku, "stock": stock})
 
 # -----------------------------
-# ✅ 首页页面
+# ✅ 接口 4：统一查询 SKU → 实时读取实际库存（HRP, CZUR, MOFT 通用）
+# -----------------------------
+@app.route("/api/stock/real")
+def real_stock():
+    query = request.args.get("sku", "").strip()
+    if not query:
+        return jsonify({"error": "Missing SKU"}), 400
+
+    mapping = get_brand_and_sku_map()
+    match = next((row for row in mapping if row["型番"] == query), None)
+    if not match:
+        return jsonify({"error": "SKU not found"}), 404
+
+    brand = match["ブランド"]
+    sku = match["型番"]
+    stock_data = get_real_stock_by_sku(sku, brand)
+
+    return jsonify({
+        "ブランド": brand,
+        "型番": sku,
+        "在庫": stock_data
+    })
+
+# -----------------------------
+# ✅ 首页页面（index.html）
 # -----------------------------
 @app.route("/")
 def index():
