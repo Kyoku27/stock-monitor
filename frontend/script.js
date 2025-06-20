@@ -5,7 +5,7 @@ async function fetchMappingData() {
   const data = await res.json();
   allMappingData = data;
   populateBrandFilter(data);
-  renderTable(data); // 默认全显示
+  loadStock();  // 默认加载全部库存
 }
 
 function populateBrandFilter(data) {
@@ -20,7 +20,7 @@ function populateBrandFilter(data) {
   });
 }
 
-function renderTable(data) {
+async function renderTable(data) {
   const tbody = document.getElementById("stock-table");
   tbody.innerHTML = "";
 
@@ -29,16 +29,37 @@ function renderTable(data) {
     return;
   }
 
-  data.forEach(row => {
+  for (const row of data) {
+    const sku = row["型番"] || row["システム連携用SKU番号"];
+    const brand = row["ブランド"] || "-";
+
+    let rakuten = "-";
+    let google = "-";
+
+    try {
+      const res = await fetch(`/api/stock/real?sku=${encodeURIComponent(sku)}`);
+      const json = await res.json();
+      const stock = json.在庫 || {};
+
+      if (json.ブランド === "HRP") {
+        rakuten = stock["自社"] ?? "-";
+        google = stock["City"] ?? "-";
+      } else {
+        google = stock["在庫"] ?? "-";
+      }
+    } catch (e) {
+      console.error("在庫取得失敗", e);
+    }
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${row["ブランド"] || "-"}</td>
-      <td>${row["システム連携用SKU番号"] || "-"}</td>
-      <td>-</td> <!-- 楽天在庫：暂时空 -->
-      <td>${row["在庫"] || "-"}</td>
+      <td>${brand}</td>
+      <td>${sku}</td>
+      <td>${rakuten}</td>
+      <td>${google}</td>
     `;
     tbody.appendChild(tr);
-  });
+  }
 }
 
 function loadStock() {
@@ -46,7 +67,7 @@ function loadStock() {
   const selectedBrand = document.getElementById("brandFilter").value;
 
   const filtered = allMappingData.filter(row => {
-    const sku = (row["システム連携用SKU番号"] || "").toLowerCase();
+    const sku = (row["型番"] || row["システム連携用SKU番号"] || "").toLowerCase();
     const brand = row["ブランド"] || "";
     return (!skuKeyword || sku.includes(skuKeyword)) &&
            (!selectedBrand || brand === selectedBrand);
@@ -55,6 +76,4 @@ function loadStock() {
   renderTable(filtered);
 }
 
-// 初始化
-fetchMappingData();
-
+fetchMappingData(); // 初期化
