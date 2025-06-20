@@ -71,14 +71,22 @@ def get_real_stock_by_sku(sku, brand):
 
 # ✅ 映射表读取函数（你用 Google Sheet CSV 导出的 link）
 def get_brand_and_sku_map():
-    url = os.getenv("GOOGLE_SHEET_CSV_URL")  # Render 环境变量中有这个
+    url = os.getenv("GOOGLE_SHEET_CSV_URL")
     try:
         res = requests.get(url)
         res.raise_for_status()
-        df = pd.read_csv(io.StringIO(res.text))
+        content = res.content.decode("utf-8-sig")  # ← 强制去除BOM + utf-8读取
+        df = pd.read_csv(io.StringIO(content))
+
+        # 标准化字段名（去除前后空格 + 中文/日文正常显示）
+        df.columns = df.columns.str.strip()
+
+        print("[DEBUG] 映射表字段：", df.columns.tolist())  # 可删除
+
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[ERROR] SKU mapping fetch failed: {e}")
         return []
+
 
 
