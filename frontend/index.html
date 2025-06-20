@@ -80,67 +80,57 @@
       });
     }
 
-    async function loadStock() {
-      const skuKeyword = document.getElementById("skuSearch").value.trim().toLowerCase();
-      const selectedBrand = document.getElementById("brandFilter").value;
+async function loadStock() {
+  const skuKeyword = document.getElementById("skuSearch").value.trim().toLowerCase();
+  const selectedBrand = document.getElementById("brandFilter").value;
 
-      const filtered = allMappingData.filter(row => {
-        const sku = (row["システム連携用SKU番号"] || "").toLowerCase();
-        const brand = row["ブランド"] || "";
-        return (!skuKeyword || sku.includes(skuKeyword)) &&
-               (!selectedBrand || brand === selectedBrand);
-      });
+  const filtered = allMappingData.filter(row => {
+    const sku = (row["型番"] || "").toLowerCase();
+    const brand = row["ブランド"] || "";
+    return (!skuKeyword || sku.includes(skuKeyword)) &&
+           (!selectedBrand || brand === selectedBrand);
+  });
 
-      const skuList = filtered.map(row => row["システム連携用SKU番号"]).filter(Boolean);
-      if (skuList.length === 0) {
-        renderTable([]);
-        return;
+  const tbody = document.getElementById("stock-table");
+  tbody.innerHTML = "";
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='4'>一致するデータがありません</td></tr>";
+    return;
+  }
+
+  for (const row of filtered) {
+    const sku = row["型番"];
+    try {
+      const res = await fetch(`/api/stock/real?sku=${encodeURIComponent(sku)}`);
+      const json = await res.json();
+
+      const stockInfo = json.在庫;
+      let rakuten = "-";
+      let google = "-";
+
+      if (json.ブランド === "HRP") {
+        rakuten = stockInfo["自社"] ?? "-";
+        google = stockInfo["City"] ?? "-";
+      } else {
+        google = stockInfo["在庫"] ?? "-";
       }
 
-      const manageNumber = "smartpetfeeder"; // 固定参数，确保你的后端支持
-      const query = skuList.map(sku => `sku=${encodeURIComponent(sku)}`).join("&");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${json.ブランド}</td>
+        <td>${sku}</td>
+        <td>${rakuten}</td>
+        <td>${google}</td>
+      `;
+      tbody.appendChild(tr);
 
-      let stockData = [];
-      try {
-        const res = await fetch(`/api/stock/rakuten?manage=${manageNumber}&${query}`);
-        stockData = await res.json();
-      } catch (e) {
-        console.error("楽天API呼び出し失敗", e);
-      }
-
-      const merged = stockData.map(row => {
-        const match = allMappingData.find(item => item["システム連携用SKU番号"] === row.sku);
-        return {
-          brand: match?.["ブランド"] || "-",
-          sku: row.sku,
-          rakuten: row.rakuten ?? "-",
-          google: row.google ?? "-"
-        };
-      });
-
-      renderTable(merged);
+    } catch (err) {
+      console.error("API失敗", err);
     }
+  }
+}
 
-    function renderTable(data) {
-      const tbody = document.getElementById("stock-table");
-      tbody.innerHTML = "";
-
-      if (data.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='4'>一致するデータがありません</td></tr>";
-        return;
-      }
-
-      data.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${row.brand}</td>
-          <td>${row.sku}</td>
-          <td>${row.rakuten}</td>
-          <td>${row.google}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
 
     fetchMappingData(); // 页面初始化时加载
   </script>
