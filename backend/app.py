@@ -103,7 +103,7 @@ def stock_moft():
         return jsonify({"sku": sku, "stock": stock})
 
 # -----------------------------
-# ✅ 接口 4：统一查询 SKU → 实时读取实际库存（HRP, CZUR, MOFT 通用）
+# ✅ 接口 4：统一查询 SKU → 实时读取实际库存（HRP, CZUR, MOFT 通用 + 乐天）
 # -----------------------------
 @app.route("/api/stock/real")
 def real_stock():
@@ -127,11 +127,23 @@ def real_stock():
 
     brand = match.get("ブランド", "")
     sku = match.get("型番", "")
+    manage_number = match.get("SKU管理番号", "") or match.get("システム連携用SKU番号", "")
+
+    # ✅ 获取乐天在庫
+    rakuten_quantity = "-"
+    rakuten_data = get_rakuten_inventory(manage_number, [sku])
+    for item in rakuten_data:
+        if item.get("variantId") == sku:
+            rakuten_quantity = item.get("quantity", "-")
+            break
+
+    # ✅ 获取 Google 表中库存
     stock_data = get_real_stock_by_sku(sku, brand)
 
     return jsonify({
         "ブランド": brand,
         "型番": sku,
+        "楽天在庫": rakuten_quantity,
         "在庫": stock_data
     })
 
