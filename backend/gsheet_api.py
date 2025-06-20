@@ -70,6 +70,8 @@ def get_real_stock_by_sku(sku, brand):
         return {}
 
 def get_brand_and_sku_map():
+    print("🧨 当前部署代码来自：Kyoku27 最新版本")
+
     url = os.getenv("GOOGLE_SHEET_CSV_URL")
     try:
         res = requests.get(url)
