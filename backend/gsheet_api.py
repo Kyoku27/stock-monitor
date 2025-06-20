@@ -32,7 +32,7 @@ def get_moft_stock_from_multiple_csvs(target_sku):
 def get_real_stock_by_sku(sku, brand):
     if brand == "MOFT":
         stock = get_moft_stock_from_multiple_csvs(sku)
-        return {"在庫": stock} if stock else {}
+        return {"商品ID": sku, "在庫": stock} if stock else {}
 
     url = get_sheet_csv_url_by_brand(brand)
     if not url:
@@ -51,14 +51,16 @@ def get_real_stock_by_sku(sku, brand):
     if target_col == -1:
         return {}
 
-    stock_row = rows[5]  # ✅ 第6行是「今月」库存
+    stock_row = rows[7]  # ✅ 第8行是「今月」库存
 
     if brand == "HRP":
         return {
+            "商品ID": sku,
             "自社": stock_row[target_col].strip(),
             "City": stock_row[target_col + 1].strip() if target_col + 1 < len(stock_row) else ""
         }
     else:
         return {
+            "商品ID": sku,
             "在庫": stock_row[target_col].strip()
         }
