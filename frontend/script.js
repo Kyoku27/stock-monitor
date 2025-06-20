@@ -1,4 +1,3 @@
-<script>
 let allMappingData = [];
 
 async function fetchMappingData() {
@@ -6,7 +5,7 @@ async function fetchMappingData() {
   const data = await res.json();
   allMappingData = data;
   populateBrandFilter(data);
-  loadStock(); // 初期化加载
+  loadStock(); // 初期表示
 }
 
 function populateBrandFilter(data) {
@@ -31,7 +30,7 @@ async function renderTable(data) {
   }
 
   for (const row of data) {
-    const sku = row["システム連携用SKU番号"] || row["型番"];
+    const sku = row["システム連携用SKU番号"];
     const brand = row["ブランド"] || "-";
 
     let rakuten = "-";
@@ -41,11 +40,10 @@ async function renderTable(data) {
     try {
       const res = await fetch(`/api/stock/real?sku=${encodeURIComponent(sku)}`);
       const json = await res.json();
+      const stock = json.在庫 || {};
 
-      // 乐天库存是一个字段
       rakuten = json["楽天在庫"] ?? "-";
 
-      const stock = json["在庫"] || {};
       if (brand === "HRP") {
         googleSelf = stock["自社"] ?? "-";
         googleCity = stock["City"] ?? "-";
@@ -73,7 +71,7 @@ function loadStock() {
   const selectedBrand = document.getElementById("brandFilter").value;
 
   const filtered = allMappingData.filter(row => {
-    const sku = (row["型番"] || row["システム連携用SKU番号"] || "").toLowerCase();
+    const sku = (row["システム連携用SKU番号"] || "").toLowerCase();
     const brand = row["ブランド"] || "";
     return (!skuKeyword || sku.includes(skuKeyword)) &&
            (!selectedBrand || brand === selectedBrand);
@@ -82,6 +80,4 @@ function loadStock() {
   renderTable(filtered);
 }
 
-fetchMappingData(); // 页面初始化时加载
-</script>
-
+fetchMappingData(); // 初始化加载
