@@ -1,30 +1,94 @@
+# ✅ backend/gsheet_stock.py
 import os
-import json
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import csv
+import io
+import requests
 
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+# ✅ 不暴露任何链接在代码中，均来自环境变量
+def get_sheet_csv_url_by_brand(brand):
+    return {
+        "HRP": os.getenv("SHEET_HRP_URL"),
+        "MOFT": os.getenv("SHEET_MOFT_URL"),
+        "CZUR": os.getenv("SHEET_CZUR_URL"),
+    }.get(brand)
 
-# 从环境变量读取服务账户 JSON 内容
-service_account_info = json.loads(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "{}"))
-creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
-client = gspread.authorize(creds)
+def get_real_stock_by_sku(sku, brand):
+    url = get_sheet_csv_url_by_brand(brand)
+    if not url:
+        return {}
 
-SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-SHEET_NAME = os.getenv("GOOGLE_SHEET_SHEETNAME", "楽天")
+    res = requests.get(url)
+    res.raise_for_status()
+    rows = list(csv.reader(io.StringIO(res.text)))
 
-def get_google_stock_mapping():
-    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-    rows = sheet.get_all_records()
-    results = []
+    # 找型番的列号（在第4行）
+    target_col = -1
+    for idx, val in enumerate(rows[3]):
+        if val.strip() == sku:
+            target_col = idx
+            break
+
+    if target_col == -1:
+        return {}
+
+    stock_row = rows[5]  # 第6行是 "今月" 在庫
+
+    if brand == "HRP":
+        return {
+            "自社": stock_row[target_col].strip(),
+            "City": stock_row[target_col + 1].strip() if target_col + 1 < len(stock_row) else ""
+        }
+    else:
+        return {
+            "在庫": stock_row[target_col].strip()
+        }
+
+
+# ✅ backend/gsheet_mapping.py
+import os
+import csv
+import io
+import requests
+
+MAPPING_CSV_URL = os.getenv("GOOGLE_SHEET_CSV_URL")
+
+def get_brand_and_sku_map():
+    res = requests.get(MAPPING_CSV_URL)
+    res.raise_for_status()
+    rows = csv.DictReader(io.StringIO(res.text))
+    result = []
     for row in rows:
-        results.append({
-            "SKU管理番号": row.get("SKU管理番号"),
-            "システム連携用SKU番号": row.get("システム連携用SKU番号"),
-            "型番": row.get("型番"),
-            "ブランド": row.get("ブランド"),
-            "商品ID": row.get("商品ID"),
-            "在庫": row.get("在庫", "")
+        result.append({
+            "型番": row.get("型番", "").strip(),
+            "ブランド": row.get("ブランド", "").strip(),
+            "システム連携用SKU番号": row.get("システム連携用SKU番号", "").strip()
         })
-    return results
+    return result
+
+
+# ✅ app.py - 添加新接口
+from gsheet_mapping import get_brand_and_sku_map
+from gsheet_stock import get_real_stock_by_sku
+
+@app.route("/api/stock/real")
+def real_stock():
+    query = request.args.get("sku", "").strip()
+    if not query:
+        return jsonify({"error": "Missing SKU"}), 400
+
+    mapping = get_brand_and_sku_map()
+    match = next((row for row in mapping if row["型番"] == query), None)
+    if not match:
+        return jsonify({"error": "SKU not found"}), 404
+
+    brand = match["ブランド"]
+    sku = match["型番"]
+    stock_data = get_real_stock_by_sku(sku, brand)
+
+    return jsonify({
+        "ブランド": brand,
+        "型番": sku,
+        "在庫": stock_data
+    })
+
 
