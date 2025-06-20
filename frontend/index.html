@@ -2,61 +2,76 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>在庫モニター</title>
+  <title>在庫モニター（楽天 + Google Sheets）</title>
   <style>
     body {
-      font-family: sans-serif;
-      padding: 20px;
-      background: #f8f8f8;
+      font-family: "Segoe UI", sans-serif;
+      padding: 40px;
+      background: #f4f7fa;
+      color: #333;
     }
     h1 {
-      font-size: 24px;
+      font-size: 26px;
+      margin-bottom: 20px;
     }
-    input, select {
-      padding: 5px;
-      margin: 5px 10px 5px 0;
+    .controls {
+      margin-bottom: 20px;
+    }
+    input, select, button {
+      padding: 8px;
+      font-size: 14px;
+      margin-right: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
     }
     table {
-      border-collapse: collapse;
       width: 100%;
-      margin-top: 20px;
-      background: #fff;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     th, td {
-      border: 1px solid #ccc;
-      padding: 8px;
+      border: 1px solid #ddd;
+      padding: 10px;
       text-align: center;
     }
     th {
-      background-color: #f4f4f4;
+      background-color: #f0f2f5;
     }
   </style>
 </head>
 <body>
-  <h1>在庫モニター</h1>
+  <h1>在庫モニター（楽天 + Google Sheets）</h1>
+  <div class="controls">
+    <label>SKU検索：</label>
+    <input type="text" id="skuSearch" placeholder="例: PD50" />
 
-  <label>SKU検索：</label>
-  <input type="text" id="skuSearch" placeholder="例: MS006-1-BU" />
+    <label>ブランド：</label>
+    <select id="brandFilter"></select>
 
-  <label>ブランド：</label>
-  <select id="brandFilter"></select>
-
-  <button onclick="loadStock()">検索</button>
+    <button onclick="loadStock()">検索</button>
+  </div>
 
   <table>
-
     <thead>
-  <tr>
-    <th>ブランド</th>
-    <th>SKU</th>
-    <th>楽天在庫</th>
-    <th>Google自社</th>
-    <th>Google City</th>
-  </tr>
-</thead>
-
+      <tr>
+        <th>ブランド</th>
+        <th>SKU</th>
+        <th>楽天在庫</th>
+        <th>Google自社</th>
+        <th>Google City</th>
+      </tr>
+    </thead>
     <tbody id="stock-table">
-      <tr><td colspan="4">読み込み中...</td></tr>
+      <tr><td colspan="5">読み込み中...</td></tr>
     </tbody>
   </table>
 
@@ -68,7 +83,7 @@
       const data = await res.json();
       allMappingData = data;
       populateBrandFilter(data);
-      loadStock();  // 初回加载
+      loadStock();
     }
 
     function populateBrandFilter(data) {
@@ -86,54 +101,57 @@
     async function loadStock() {
       const skuKeyword = document.getElementById("skuSearch").value.trim().toLowerCase();
       const selectedBrand = document.getElementById("brandFilter").value;
+      const tbody = document.getElementById("stock-table");
+      tbody.innerHTML = "";
 
       const filtered = allMappingData.filter(row => {
-        const sku = (row["型番"] || "").toLowerCase();
+        const sku = (row["システム連携用SKU番号"] || "").toLowerCase();
         const brand = row["ブランド"] || "";
         return (!skuKeyword || sku.includes(skuKeyword)) &&
                (!selectedBrand || brand === selectedBrand);
       });
 
-      const tbody = document.getElementById("stock-table");
-      tbody.innerHTML = "";
-
       if (filtered.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='4'>一致するデータがありません</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='5'>一致するデータがありません</td></tr>";
         return;
       }
 
       for (const row of filtered) {
-        const sku = row["型番"];
+        const sku = row["システム連携用SKU番号"];
+        const manage = row["SKU管理番号"];
+        let rakuten = "-", googleA = "-", googleB = "-";
+
         try {
-          const res = await fetch(`/api/stock/real?sku=${encodeURIComponent(sku)}`);
-          const json = await res.json();
-
-          const stockInfo = json.在庫 || {};
-          let rakuten = "-";
-          let google = "-";
-
-          if (json.ブランド === "HRP") {
-            rakuten = stockInfo["自社"] ?? "-";
-            google = stockInfo["City"] ?? "-";
-          } else {
-            google = stockInfo["在庫"] ?? "-";
+          if (manage && sku) {
+            const res1 = await fetch(`/api/stock/rakuten?manage=${encodeURIComponent(manage)}&sku=${encodeURIComponent(sku)}`);
+            const json1 = await res1.json();
+            const match = json1.find(item => item.variantId === sku);
+            rakuten = match ? match.quantity : "-";
           }
 
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${json.ブランド}</td>
-            <td>${sku}</td>
-            <td>${rakuten}</td>
-            <td>${google}</td>
-          `;
-          tbody.appendChild(tr);
-        } catch (err) {
-          console.error("API失敗", err);
+          const res2 = await fetch(`/api/stock/gsheet?sku=${encodeURIComponent(sku)}`);
+          const json2 = await res2.json();
+          if (json2.在庫) {
+            googleA = json2.在庫.自社 ?? json2.在庫.在庫 ?? "-";
+            googleB = json2.在庫.City ?? "-";
+          }
+        } catch (e) {
+          console.error("API取得失敗", e);
         }
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row["ブランド"]}</td>
+          <td>${sku}</td>
+          <td>${rakuten}</td>
+          <td>${googleA}</td>
+          <td>${googleB}</td>
+        `;
+        tbody.appendChild(tr);
       }
     }
 
-    fetchMappingData(); // 页面初始化时加载
+    fetchMappingData();
   </script>
 </body>
 </html>
