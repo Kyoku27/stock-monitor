@@ -116,17 +116,20 @@ def real_stock():
     brand = match.get("ブランド", "")
     型番 = match.get("型番", "")
     sku_for_api = match.get("システム連携用SKU番号", "")
-    manage_number = match.get("SKU管理番号", "") or sku_for_api
+    manage_number = match.get("SKU管理番号", "")
 
-    # ✅ 调用楽天API（variantId 要用 SKU 番号）
+    # ✅ 查询楽天在庫：只需要 SKU管理番号 + sku_for_api
     rakuten_quantity = "-"
-    rakuten_data = get_rakuten_inventory(manage_number, [sku_for_api])
-    for item in rakuten_data:
-        if item.get("variantId") == sku_for_api:
-            rakuten_quantity = item.get("quantity", "-")
-            break
+    try:
+        rakuten_data = get_rakuten_inventory(manage_number, [sku_for_api])
+        for item in rakuten_data:
+            if item.get("variantId") == sku_for_api:
+                rakuten_quantity = item.get("quantity", "-")
+                break
+    except Exception as e:
+        print("[ERROR] 楽天在庫取得失敗:", e)
 
-    # ✅ 查库存表
+    # ✅ 查询 Google 表库存
     stock_data = get_real_stock_by_sku(型番, brand)
 
     return jsonify({
@@ -135,6 +138,7 @@ def real_stock():
         "楽天在庫": rakuten_quantity,
         "在庫": stock_data
     })
+
 
 # -----------------------------
 @app.route("/")
