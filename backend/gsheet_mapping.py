@@ -12,8 +12,10 @@ def get_brand_and_sku_map():
     result = []
     for row in rows:
         result.append({
+            "SKU管理番号": row.get("SKU管理番号", "").strip(),
             "型番": row.get("型番", "").strip(),
             "ブランド": row.get("ブランド", "").strip(),
             "システム連携用SKU番号": row.get("システム連携用SKU番号", "").strip()
         })
     return result
+
