@@ -2,22 +2,42 @@
 import os
 import csv
 import io
+import json
 import requests
+import pandas as pd
 
-# ✅ 不暴露任何链接在代码中，均来自环境变量
-def get_sheet_csv_url(sku, brand):
-    if brand == "HRP":
-        return os.getenv("SHEET_HRP_URL")
-    elif brand == "CZUR":
-        return os.getenv("SHEET_CZUR_URL")
-    elif brand == "MOFT":
-        moft_map = json.loads(os.getenv("SHEET_MOFT_MAP_JSON", "{}"))
-        return moft_map.get(sku)
-    else:
-        return None
+# ✅ 获取库存表链接
+
+def get_sheet_csv_url_by_brand(brand):
+    return {
+        "HRP": os.getenv("SHEET_HRP_URL"),
+        "CZUR": os.getenv("SHEET_CZUR_URL")
+    }.get(brand)
+
+# ✅ 自动查找 MOFT 所在的表格（遍历）
+def get_moft_stock_from_multiple_csvs(target_sku):
+    urls = json.loads(os.environ.get("SHEET_MOFT_URLS", "[]"))
+
+    for url in urls:
+        try:
+            response = requests.get(url)
+            content = response.content.decode("utf-8")
+            df = pd.read_csv(io.StringIO(content), header=None)
+
+            for col in df.columns:
+                if str(df.iloc[3, col]).strip() == target_sku:
+                    return str(df.iloc[5, col]).strip()
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch from {url}: {e}")
+
+    return None
 
 
 def get_real_stock_by_sku(sku, brand):
+    if brand == "MOFT":
+        stock = get_moft_stock_from_multiple_csvs(sku)
+        return {"在庫": stock} if stock else {}
+
     url = get_sheet_csv_url_by_brand(brand)
     if not url:
         return {}
@@ -26,7 +46,6 @@ def get_real_stock_by_sku(sku, brand):
     res.raise_for_status()
     rows = list(csv.reader(io.StringIO(res.text)))
 
-    # 找型番的列号（在第4行）
     target_col = -1
     for idx, val in enumerate(rows[3]):
         if val.strip() == sku:
@@ -36,7 +55,7 @@ def get_real_stock_by_sku(sku, brand):
     if target_col == -1:
         return {}
 
-    stock_row = rows[5]  # 第6行是 "今月" 在庫
+    stock_row = rows[5]
 
     if brand == "HRP":
         return {
