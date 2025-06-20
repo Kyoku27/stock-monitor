@@ -11,14 +11,10 @@ from gsheet_api import (
     get_real_stock_by_sku
 )
 
-# ✅ 设置 Flask 应用并指定前端文件夹
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# ✅ 映射表 CSV（初始化表）
 SHEET_CSV_URL = os.environ.get("GOOGLE_SHEET_CSV_URL", "")
 
-# -----------------------------
-# ✅ 函数：从映射表中读取 Google 在庫（用于 /api/stock/rakuten）
 # -----------------------------
 def get_google_inventory(sku_list):
     if not SHEET_CSV_URL:
@@ -45,8 +41,6 @@ def get_google_inventory(sku_list):
     return stock_map
 
 # -----------------------------
-# ✅ 接口 1：获取 SKU 映射表（初始化用）
-# -----------------------------
 @app.route("/api/stock/mapping")
 def stock_mapping():
     if not SHEET_CSV_URL:
@@ -63,8 +57,6 @@ def stock_mapping():
     data = [row for row in reader if any(row.values())]
     return jsonify(data)
 
-# -----------------------------
-# ✅ 接口 2：楽天 + Google 在庫合并返回
 # -----------------------------
 @app.route("/api/stock/rakuten")
 def rakuten_stock():
@@ -88,8 +80,6 @@ def rakuten_stock():
     return jsonify(merged)
 
 # -----------------------------
-# ✅ 接口 3：MOFT 实时库存（从多个表中找）
-# -----------------------------
 @app.route("/api/stock/moft")
 def stock_moft():
     sku = request.args.get("sku")
@@ -103,8 +93,6 @@ def stock_moft():
         return jsonify({"sku": sku, "stock": stock})
 
 # -----------------------------
-# ✅ 接口 4：统一查询 SKU → 实时读取实际库存（HRP, CZUR, MOFT 通用 + 乐天）
-# -----------------------------
 @app.route("/api/stock/real")
 def real_stock():
     query = request.args.get("sku", "").strip()
@@ -112,7 +100,6 @@ def real_stock():
         return jsonify({"error": "Missing SKU"}), 400
 
     mapping = get_brand_and_sku_map()
-
     match = next(
         (row for row in mapping if query in (
             row.get("SKU管理番号", ""),
@@ -126,36 +113,40 @@ def real_stock():
         return jsonify({"error": "SKU not found"}), 404
 
     brand = match.get("ブランド", "")
-    sku = match.get("型番", "")
-    manage_number = match.get("SKU管理番号", "") or match.get("システム連携用SKU番号", "")
+    model_sku = match.get("型番", "")
+    manage_number = match.get("SKU管理番号", "")
+    system_sku = match.get("システム連携用SKU番号", "")
 
-    # ✅ 获取乐天在庫
+    # ✅ 乐天在庫
     rakuten_quantity = "-"
-    rakuten_data = get_rakuten_inventory(manage_number, [sku])
-    for item in rakuten_data:
-        if item.get("variantId") == sku:
-            rakuten_quantity = item.get("quantity", "-")
-            break
+    try:
+        rakuten_result = get_rakuten_inventory(manage_number, [model_sku])
+        for item in rakuten_result:
+            if item.get("variantId") == model_sku:
+                rakuten_quantity = item.get("quantity", "-")
+                break
+    except Exception as e:
+        print(f"[ERROR] 楽天 API failed: {e}")
 
-    # ✅ 获取 Google 表中库存
-    stock_data = get_real_stock_by_sku(sku, brand)
+    # ✅ Google 表在庫
+    google_stock = get_real_stock_by_sku(model_sku, brand)
+    google_jisha = google_stock.get("自社") if "自社" in google_stock else google_stock.get("在庫", "-")
+    google_city = google_stock.get("City") if "City" in google_stock else "-"
 
     return jsonify({
         "ブランド": brand,
-        "型番": sku,
+        "SKU": system_sku,
+        "型番": model_sku,
         "楽天在庫": rakuten_quantity,
-        "在庫": stock_data
+        "Google自社": google_jisha,
+        "GoogleCity": google_city
     })
 
-# -----------------------------
-# ✅ 首页页面（index.html）
 # -----------------------------
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
 
-# -----------------------------
-# ✅ 启动服务
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
