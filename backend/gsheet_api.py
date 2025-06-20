@@ -69,5 +69,16 @@ def get_real_stock_by_sku(sku, brand):
         print(f"[ERROR] Google Sheet Fetch Failed: {e}")
         return {}
 
+# ✅ 映射表读取函数（你用 Google Sheet CSV 导出的 link）
+def get_brand_and_sku_map():
+    url = os.getenv("GOOGLE_SHEET_CSV_URL")  # Render 环境变量中有这个
+    try:
+        res = requests.get(url)
+        res.raise_for_status()
+        df = pd.read_csv(io.StringIO(res.text))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] SKU mapping fetch failed: {e}")
+        return []
 
 
